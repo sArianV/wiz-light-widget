@@ -61,6 +61,25 @@ public static class IconFactory
         return bmp.GetHicon();
     }
 
+    public static IntPtr CreateWhiteTempIcon(bool warm, int size = 32)
+    {
+        using var bmp = new Bitmap(size, size);
+        using var g = Graphics.FromImage(bmp);
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.Clear(Color.Transparent);
+
+        using (var bgBrush = new SolidBrush(Color.FromArgb(255, 60, 60, 66)))
+            g.FillEllipse(bgBrush, 1, 1, size - 2, size - 2);
+
+        // Mismo tono que los swatches de blanco cálido/frío del resto de la app.
+        var swatch = warm ? Color.FromArgb(255, 255, 217, 166) : Color.FromArgb(255, 234, 244, 255);
+        float inset = size * 0.22f;
+        using (var swatchBrush = new SolidBrush(swatch))
+            g.FillEllipse(swatchBrush, inset, inset, size - inset * 2, size - inset * 2);
+
+        return bmp.GetHicon();
+    }
+
     [DllImport("user32.dll")]
     public static extern bool DestroyIcon(IntPtr handle);
 }

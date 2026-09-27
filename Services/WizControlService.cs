@@ -33,6 +33,9 @@ public class WizControlService
     public Task SetColorAsync(string ip, byte r, byte g, byte b) =>
         SendAsync(ip, new { method = "setPilot", @params = new { state = true, r, g, b } });
 
+    public Task SetColorAndBrightnessAsync(string ip, byte r, byte g, byte b, int percent) =>
+        SendAsync(ip, new { method = "setPilot", @params = new { state = true, r, g, b, dimming = Math.Clamp(percent, 10, 100) } });
+
     public Task SetColorTempAsync(string ip, int kelvin) =>
         SendAsync(ip, new { method = "setPilot", @params = new { state = true, temp = Math.Clamp(kelvin, 2200, 6500) } });
 

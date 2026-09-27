@@ -24,17 +24,23 @@ public partial class MainWindow : Window
     private readonly WizControlService _control = new();
     private readonly BulbStore _store = new();
     private readonly TaskbarThumbnailManager _taskbarMgr = new();
+    private readonly AudioReactiveService _audioReactive = new();
     private readonly Dictionary<string, DispatcherTimer> _brightnessDebounce = new();
+
+    // Re-escanea la red para detectar focos que se conectaron o desconectaron.
+    private readonly DispatcherTimer _periodicScanTimer = new() { Interval = TimeSpan.FromSeconds(20) };
 
     private WinForms.NotifyIcon? _trayIcon;
     private System.Drawing.Icon? _appIcon;
     private bool _cleanedUp;
 
-    private IntPtr _iconPowerOn, _iconPowerOff, _iconBrightUp, _iconBrightDown;
+    private IntPtr _iconPowerOn, _iconPowerOff, _iconBrightUp, _iconBrightDown, _iconWarmWhite, _iconCoolWhite;
 
     private const uint ThumbIdPower = 1;
     private const uint ThumbIdBrightDown = 2;
     private const uint ThumbIdBrightUp = 3;
+    private const uint ThumbIdWarmWhite = 4;
+    private const uint ThumbIdCoolWhite = 5;
 
     public MainWindow()
     {
@@ -53,6 +59,9 @@ public partial class MainWindow : Window
         SetupTrayIcon();
         SetupThumbnailToolbar();
         await RunDiscoveryAsync();
+
+        _periodicScanTimer.Tick += async (_, _) => await RunDiscoveryAsync(silent: true);
+        _periodicScanTimer.Start();
     }
 
     // La X cierra la app de verdad. El botón de minimizar de Windows sigue
@@ -66,14 +75,17 @@ public partial class MainWindow : Window
         if (_cleanedUp) return;
         _cleanedUp = true;
 
+        _periodicScanTimer.Stop();
+
         if (_trayIcon != null)
         {
             _trayIcon.Visible = false;
             _trayIcon.Dispose();
         }
         _appIcon?.Dispose();
+        _audioReactive.Dispose();
 
-        foreach (var h in new[] { _iconPowerOn, _iconPowerOff, _iconBrightUp, _iconBrightDown })
+        foreach (var h in new[] { _iconPowerOn, _iconPowerOff, _iconBrightUp, _iconBrightDown, _iconWarmWhite, _iconCoolWhite })
             if (h != IntPtr.Zero) IconFactory.DestroyIcon(h);
     }
 
@@ -218,6 +230,153 @@ public partial class MainWindow : Window
         CheckForUpdatesButton.IsEnabled = true;
     }
 
+    // ----- Modo rítmico (pulsa las luces al ritmo del audio que suena en la PC) -----
+
+    private enum RhythmColorMode { Rainbow, WarmCoolWhite, FixedList }
+
+    private static readonly Color WarmWhite = (Color)ColorConverter.ConvertFromString("#FFD9A6")!;
+    private static readonly Color CoolWhite = (Color)ColorConverter.ConvertFromString("#EAF4FF")!;
+
+    // Colores activos para el modo "Colores fijos"; se actualiza al tocar los círculos del popup.
+    private List<Color> _fixedRhythmColors = new()
+    {
+        WarmWhite, CoolWhite,
+        (Color)ColorConverter.ConvertFromString("#FF6B6B")!,
+        (Color)ColorConverter.ConvertFromString("#FFA500")!,
+        (Color)ColorConverter.ConvertFromString("#FFD93D")!,
+        (Color)ColorConverter.ConvertFromString("#6BCB77")!,
+        (Color)ColorConverter.ConvertFromString("#4D96FF")!,
+        (Color)ColorConverter.ConvertFromString("#9B5DE5")!,
+    };
+
+    private RhythmColorMode _rhythmMode = RhythmColorMode.Rainbow;
+    private double _rhythmHue;
+    private int _fixedColorIndex;
+    private bool _warmToggle;
+    private bool _rhythmRunning;
+
+    private void RhythmButton_Click(object sender, RoutedEventArgs e)
+    {
+        RainbowModeRadio.IsChecked = _rhythmMode == RhythmColorMode.Rainbow;
+        WhiteModeRadio.IsChecked = _rhythmMode == RhythmColorMode.WarmCoolWhite;
+        FixedModeRadio.IsChecked = _rhythmMode == RhythmColorMode.FixedList;
+        RhythmStopButton.IsEnabled = _rhythmRunning;
+        RhythmPopup.IsOpen = !RhythmPopup.IsOpen;
+    }
+
+    private void RhythmModeRadio_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not RadioButton rb || rb.Tag is not string tag) return;
+
+        _rhythmMode = tag switch
+        {
+            "FixedList" => RhythmColorMode.FixedList,
+            "WarmCoolWhite" => RhythmColorMode.WarmCoolWhite,
+            _ => RhythmColorMode.Rainbow
+        };
+        _rhythmHue = 0;
+        _fixedColorIndex = 0;
+        _warmToggle = false;
+
+        StartRhythmMode();
+        RhythmPopup.IsOpen = false;
+    }
+
+    private void FixedColorToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ToggleButton clicked) return;
+
+        var toggles = FixedColorsPanel.Children.OfType<ToggleButton>().ToList();
+        if (toggles.All(t => t.IsChecked != true))
+            clicked.IsChecked = true; // no dejar la rotación vacía
+
+        _fixedRhythmColors = toggles
+            .Where(t => t.IsChecked == true && t.Tag is string)
+            .Select(t => (Color)ColorConverter.ConvertFromString((string)t.Tag)!)
+            .ToList();
+        _fixedColorIndex = 0;
+    }
+
+    private void RhythmStopButton_Click(object sender, RoutedEventArgs e)
+    {
+        StopRhythmMode();
+        RhythmPopup.IsOpen = false;
+    }
+
+    private void StartRhythmMode()
+    {
+        if (_rhythmRunning) return;
+        try
+        {
+            _audioReactive.BeatDetected += OnBeatDetected;
+            _audioReactive.Start();
+            _rhythmRunning = true;
+            RhythmButton.Background = (Brush)FindResource("AccentBrush");
+            StatusText.Text = "Modo rítmico";
+        }
+        catch
+        {
+            _audioReactive.BeatDetected -= OnBeatDetected;
+            _rhythmRunning = false;
+            StatusText.Text = "No se pudo iniciar la captura de audio.";
+        }
+    }
+
+    private void StopRhythmMode()
+    {
+        if (!_rhythmRunning) return;
+        _audioReactive.BeatDetected -= OnBeatDetected;
+        _audioReactive.Stop();
+        _rhythmRunning = false;
+        RhythmButton.Background = Brushes.Transparent;
+        StatusText.Text = "Modo rítmico detenido.";
+    }
+
+    private void OnBeatDetected(double strength)
+    {
+        // Llega desde el hilo de captura de audio del servicio.
+        Dispatcher.BeginInvoke(() =>
+        {
+            var targets = GetThumbTargets().Where(b => b.IsOn).ToList();
+            if (targets.Count == 0) return;
+
+            byte r, g, b;
+            switch (_rhythmMode)
+            {
+                case RhythmColorMode.FixedList when _fixedRhythmColors.Count > 0:
+                    _fixedColorIndex = (_fixedColorIndex + 1) % _fixedRhythmColors.Count;
+                    var c = _fixedRhythmColors[_fixedColorIndex];
+                    (r, g, b) = (c.R, c.G, c.B);
+                    break;
+                case RhythmColorMode.WarmCoolWhite:
+                    _warmToggle = !_warmToggle;
+                    var white = _warmToggle ? WarmWhite : CoolWhite;
+                    (r, g, b) = (white.R, white.G, white.B);
+                    break;
+                default:
+                    // Cada golpe avanza el tono; su "fuerza" acelera el salto de color.
+                    _rhythmHue = (_rhythmHue + 35 + strength * 40) % 360;
+                    (r, g, b) = HsvToRgb(_rhythmHue, 1.0, 1.0);
+                    break;
+            }
+
+            int brightness = 35 + (int)Math.Round(Math.Clamp(strength, 0, 1) * 65);
+
+            foreach (var bulb in targets)
+            {
+                bulb.Color = Color.FromRgb(r, g, b);
+                bulb.Brightness = brightness;
+                _ = SafeSetColorAndBrightness(bulb.Ip, r, g, b, brightness);
+            }
+        });
+    }
+
+    private async Task SafeSetColorAndBrightness(string ip, byte r, byte g, byte b, int brightness)
+    {
+        try { await _control.SetColorAndBrightnessAsync(ip, r, g, b, brightness); }
+        catch { /* offline bulb, ignore */ }
+    }
+
     private static string GetAppVersion()
     {
         var v = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
@@ -234,12 +393,16 @@ public partial class MainWindow : Window
         _iconPowerOff = IconFactory.CreatePowerIcon(false);
         _iconBrightDown = IconFactory.CreateBrightnessIcon(false);
         _iconBrightUp = IconFactory.CreateBrightnessIcon(true);
+        _iconWarmWhite = IconFactory.CreateWhiteTempIcon(warm: true);
+        _iconCoolWhite = IconFactory.CreateWhiteTempIcon(warm: false);
 
         _taskbarMgr.SetButtons(new List<ThumbButtonDef>
         {
             new(ThumbIdPower, _iconPowerOff, "Encender/apagar todas"),
             new(ThumbIdBrightDown, _iconBrightDown, "Bajar brillo"),
             new(ThumbIdBrightUp, _iconBrightUp, "Subir brillo"),
+            new(ThumbIdWarmWhite, _iconWarmWhite, "Blanco cálido"),
+            new(ThumbIdCoolWhite, _iconCoolWhite, "Blanco frío"),
         });
 
         _taskbarMgr.ButtonClicked += async id => await OnThumbButtonClicked(id);
@@ -248,8 +411,9 @@ public partial class MainWindow : Window
     /// <summary>Favoritos si hay alguno marcado; si no, todos los bombillos como respaldo.</summary>
     private List<BulbViewModel> GetThumbTargets()
     {
-        var favorites = _bulbs.Where(b => b.IsFavorite).ToList();
-        return favorites.Count > 0 ? favorites : _bulbs.ToList();
+        var online = _bulbs.Where(b => b.IsOnline).ToList();
+        var favorites = online.Where(b => b.IsFavorite).ToList();
+        return favorites.Count > 0 ? favorites : online;
     }
 
     private async Task OnThumbButtonClicked(uint id)
@@ -270,7 +434,33 @@ public partial class MainWindow : Window
             case ThumbIdBrightUp:
                 await AdjustBrightnessAsync(targets, 10);
                 break;
+            case ThumbIdWarmWhite:
+                await SetWhiteTempAsync(targets, kelvin: 2700);
+                break;
+            case ThumbIdCoolWhite:
+                await SetWhiteTempAsync(targets, kelvin: 6500);
+                break;
         }
+    }
+
+    private async Task SetWhiteTempAsync(List<BulbViewModel> targets, int kelvin)
+    {
+        var color = kelvin <= 3500 ? Color.FromRgb(0xFF, 0xD9, 0xA6) : Color.FromRgb(0xEA, 0xF4, 0xFF);
+        foreach (var b in targets)
+        {
+            b.IsOn = true;
+            b.Color = color;
+        }
+
+        var tasks = targets.Select(b => SafeSetColorTemp(b.Ip, kelvin));
+        await Task.WhenAll(tasks);
+        UpdateAggregatePowerIcon();
+    }
+
+    private async Task SafeSetColorTemp(string ip, int kelvin)
+    {
+        try { await _control.SetColorTempAsync(ip, kelvin); }
+        catch { /* offline bulb, ignore */ }
     }
 
     private void UpdateAggregatePowerIcon()
@@ -285,6 +475,8 @@ public partial class MainWindow : Window
             new(ThumbIdPower, anyOn ? _iconPowerOn : _iconPowerOff, anyOn ? $"Apagar {label}" : $"Encender {label}"),
             new(ThumbIdBrightDown, _iconBrightDown, $"Bajar brillo ({label})"),
             new(ThumbIdBrightUp, _iconBrightUp, $"Subir brillo ({label})"),
+            new(ThumbIdWarmWhite, _iconWarmWhite, $"Blanco cálido ({label})"),
+            new(ThumbIdCoolWhite, _iconCoolWhite, $"Blanco frío ({label})"),
         });
     }
 
@@ -292,13 +484,24 @@ public partial class MainWindow : Window
 
     private async void DiscoverButton_Click(object sender, RoutedEventArgs e) => await RunDiscoveryAsync();
 
-    private async Task RunDiscoveryAsync()
+    /// <summary>
+    /// Busca bombillos en la red. Actualiza los ya conocidos, agrega los nuevos y marca
+    /// como desconectado (IsOnline=false, se grisa en la tarjeta) a cualquiera que no
+    /// haya respondido esta vez. <paramref name="silent"/> evita tocar el texto de estado
+    /// y el botón "Buscar", para los re-escaneos automáticos en segundo plano.
+    /// </summary>
+    private async Task RunDiscoveryAsync(bool silent = false)
     {
-        StatusText.Text = "Buscando bombillos en tu red...";
-        DiscoverButton.IsEnabled = false;
+        if (!silent)
+        {
+            StatusText.Text = "Buscando bombillos en tu red...";
+            DiscoverButton.IsEnabled = false;
+        }
         try
         {
             var results = await _discovery.DiscoverAsync(TimeSpan.FromSeconds(3));
+            var foundMacs = new HashSet<string>(results.Select(r => r.Mac));
+
             foreach (var state in results)
             {
                 var existing = _bulbs.FirstOrDefault(b => b.Mac == state.Mac || b.Ip == state.Ip);
@@ -317,17 +520,24 @@ public partial class MainWindow : Window
                 }
             }
 
-            StatusText.Text = results.Count == 0
-                ? "No se encontraron bombillos. Verifica que estén encendidos y en la misma red WiFi."
-                : $"{results.Count} bombillo(s) encontrado(s).";
+            foreach (var bulb in _bulbs)
+                if (!foundMacs.Contains(bulb.Mac))
+                    bulb.IsOnline = false;
+
+            if (!silent)
+            {
+                StatusText.Text = results.Count == 0
+                    ? "No se encontraron bombillos. Verifica que estén encendidos y en la misma red WiFi."
+                    : $"{results.Count} bombillo(s) encontrado(s).";
+            }
         }
         catch (Exception ex)
         {
-            StatusText.Text = "Error al buscar bombillos: " + ex.Message;
+            if (!silent) StatusText.Text = "Error al buscar bombillos: " + ex.Message;
         }
         finally
         {
-            DiscoverButton.IsEnabled = true;
+            if (!silent) DiscoverButton.IsEnabled = true;
             UpdateAggregatePowerIcon();
         }
     }
