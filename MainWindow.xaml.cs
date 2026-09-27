@@ -844,15 +844,35 @@ public partial class MainWindow : Window
     private void CustomColor_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement fe) return;
-        if (fe.FindName("ColorPickerPopup") is Popup popup)
-            popup.IsOpen = !popup.IsOpen;
+        if (fe.FindName("ColorPickerPopup") is not Popup popup) return;
+
+        bool opening = !popup.IsOpen;
+        popup.IsOpen = opening;
+        if (!opening) return;
+
+        // Al abrir, ubicar el circulito en el color que el foco tiene ahora en vez de
+        // dejarlo siempre en la esquina superior izquierda.
+        if (fe.DataContext is not BulbViewModel bulb) return;
+        if (fe.FindName("ColorPickerCanvas") is not Canvas canvas) return;
+        if (fe.FindName("ColorPickerThumb") is not Ellipse thumb) return;
+
+        var (hue, saturation) = RgbToHueSaturation(bulb.Color.R, bulb.Color.G, bulb.Color.B);
+        double x = hue / 360.0 * canvas.Width;
+        double y = saturation * canvas.Height;
+        Canvas.SetLeft(thumb, x - thumb.Width / 2);
+        Canvas.SetTop(thumb, y - thumb.Height / 2);
     }
 
     // ----- Selector de color 2D (tono horizontal, mezcla con blanco vertical, como la app oficial) -----
 
     private bool _colorPickerDragging;
     private readonly Dictionary<string, DispatcherTimer> _colorDebounce = new();
-    private readonly Dictionary<string, (byte R, byte G, byte B)> _pendingColor = new();
+    private readonly Dictionary<string, (double Hue, double Saturation, byte R, byte G, byte B)> _pendingColor = new();
+
+    // Por debajo de este umbral el color queda tan cerca del blanco que conviene mandar
+    // el canal nativo de blanco (igual que los botones predeterminados) en vez de RGB
+    // mezclado, que da mucho menos brillo real aunque se vea "blanco" en la UI.
+    private const double ColorPickerWhiteThreshold = 0.12;
 
     private void ColorPickerCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
@@ -897,12 +917,12 @@ public partial class MainWindow : Window
             Canvas.SetTop(thumb, y - thumb.Height / 2);
         }
 
-        DebounceColorSend(bulb, r, g, b);
+        DebounceColorSend(bulb, hue, saturation, r, g, b);
     }
 
-    private void DebounceColorSend(BulbViewModel bulb, byte r, byte g, byte b)
+    private void DebounceColorSend(BulbViewModel bulb, double hue, double saturation, byte r, byte g, byte b)
     {
-        _pendingColor[bulb.Ip] = (r, g, b);
+        _pendingColor[bulb.Ip] = (hue, saturation, r, g, b);
 
         if (!_colorDebounce.TryGetValue(bulb.Ip, out var timer))
         {
@@ -912,7 +932,20 @@ public partial class MainWindow : Window
                 timer!.Stop();
                 if (_pendingColor.TryGetValue(bulb.Ip, out var c))
                 {
-                    try { await _control.SetColorAsync(bulb.Ip, c.R, c.G, c.B); }
+                    try
+                    {
+                        if (c.Saturation <= ColorPickerWhiteThreshold)
+                        {
+                            // Casi blanco: mismo canal nativo que los botones predeterminados
+                            // (blanco cálido/frío), que llega a mucho más brillo real que RGB.
+                            int kelvin = c.Hue is >= 300 or < 90 ? 2700 : 6500;
+                            await _control.SetColorTempAsync(bulb.Ip, kelvin);
+                        }
+                        else
+                        {
+                            await _control.SetColorBoostedAsync(bulb.Ip, c.R, c.G, c.B);
+                        }
+                    }
                     catch { /* offline bulb, ignore */ }
                 }
             };
@@ -942,6 +975,24 @@ public partial class MainWindow : Window
         byte g = (byte)Math.Round(c0.G + (c1.G - c0.G) * t);
         byte b = (byte)Math.Round(c0.B + (c1.B - c0.B) * t);
         return (r, g, b);
+    }
+
+    private static (double Hue, double Saturation) RgbToHueSaturation(byte r, byte g, byte b)
+    {
+        double rf = r / 255.0, gf = g / 255.0, bf = b / 255.0;
+        double max = Math.Max(rf, Math.Max(gf, bf));
+        double min = Math.Min(rf, Math.Min(gf, bf));
+        double delta = max - min;
+
+        double hue;
+        if (delta < 1e-9) hue = 0;
+        else if (max == rf) hue = 60 * (((gf - bf) / delta) % 6);
+        else if (max == gf) hue = 60 * (((bf - rf) / delta) + 2);
+        else hue = 60 * (((rf - gf) / delta) + 4);
+        if (hue < 0) hue += 360;
+
+        double saturation = max <= 1e-9 ? 0 : delta / max;
+        return (hue, saturation);
     }
 
     private static (byte R, byte G, byte B) HsvToRgb(double h, double s, double v)

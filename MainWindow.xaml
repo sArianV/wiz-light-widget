@@ -618,7 +618,7 @@
                                                             </Rectangle.Fill>
                                                         </Rectangle>
                                                         <Ellipse x:Name="ColorPickerThumb" Width="18" Height="18"
-                                                                 Stroke="White" StrokeThickness="2" Fill="Transparent"
+                                                                 Stroke="Black" StrokeThickness="2" Fill="Transparent"
                                                                  IsHitTestVisible="False" Canvas.Left="0" Canvas.Top="0"/>
                                                     </Canvas>
                                                 </StackPanel>
