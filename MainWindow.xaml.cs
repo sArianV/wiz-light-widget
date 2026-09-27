@@ -101,11 +101,7 @@ public partial class MainWindow : Window
         menu.Items.Add("Apagar todas", null, async (s, e) => await SetAllPowerAsync(false));
         menu.Items.Add(new WinForms.ToolStripSeparator());
 
-        var startupItem = new WinForms.ToolStripMenuItem("Iniciar con Windows")
-        {
-            CheckOnClick = true,
-            Checked = StartupService.IsEnabled()
-        };
+        var startupItem = new WinForms.ToolStripMenuItem("Iniciar con Windows") { CheckOnClick = true };
         startupItem.Click += (s, e) => StartupService.SetEnabled(startupItem.Checked);
         menu.Items.Add(startupItem);
 
@@ -115,6 +111,10 @@ public partial class MainWindow : Window
 
         menu.Items.Add(new WinForms.ToolStripSeparator());
         menu.Items.Add("Salir", null, (s, e) => ExitApplication());
+
+        // Refresca el estado real cada vez que se abre, por si se cambió desde el popup de la ventana.
+        menu.Opening += (s, e) => startupItem.Checked = StartupService.IsEnabled();
+
         _trayIcon.ContextMenuStrip = menu;
 
         _trayIcon.DoubleClick += (s, e) => ShowWindow();
@@ -128,6 +128,15 @@ public partial class MainWindow : Window
     }
 
     private void ExitApplication() => Close();
+
+    private void SettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        StartWithWindowsCheckBox.IsChecked = StartupService.IsEnabled();
+        SettingsPopup.IsOpen = !SettingsPopup.IsOpen;
+    }
+
+    private void StartWithWindowsCheckBox_Click(object sender, RoutedEventArgs e) =>
+        StartupService.SetEnabled(StartWithWindowsCheckBox.IsChecked == true);
 
     private static string GetAppVersion()
     {

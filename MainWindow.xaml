@@ -205,12 +205,30 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <TextBlock Text="Luces WiZ" FontSize="18" FontWeight="SemiBold"/>
             </StackPanel>
-            <Button x:Name="DiscoverButton" Grid.Column="1" Content="Buscar"
+            <Button x:Name="SettingsButton" Grid.Column="1" Content="&#xE713;" FontSize="15"
+                    FontFamily="Segoe MDL2 Assets"
+                    Style="{StaticResource IconGhostButtonStyle}" Click="SettingsButton_Click"
+                    ToolTip="Configuración" Width="30" Height="30" Margin="0,0,8,0"/>
+            <Button x:Name="DiscoverButton" Grid.Column="2" Content="Buscar"
                     Style="{StaticResource AccentButtonStyle}" Click="DiscoverButton_Click"/>
+
+            <Popup x:Name="SettingsPopup" PlacementTarget="{Binding ElementName=SettingsButton}"
+                   Placement="Bottom" StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade">
+                <Border Background="#242424" CornerRadius="10" Padding="14"
+                        BorderBrush="#3A3A3A" BorderThickness="1">
+                    <StackPanel MinWidth="200">
+                        <TextBlock Text="Configuración" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="#F5F5F5" Margin="0,0,0,10"/>
+                        <CheckBox x:Name="StartWithWindowsCheckBox" Content="Iniciar con Windows"
+                                  Foreground="#F5F5F5" Click="StartWithWindowsCheckBox_Click"/>
+                    </StackPanel>
+                </Border>
+            </Popup>
         </Grid>
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="8,0">
