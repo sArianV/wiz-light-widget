@@ -420,6 +420,10 @@ public partial class MainWindow : Window
 
     private async Task OnThumbButtonClicked(uint id)
     {
+        // Los controles de la barra de tareas tienen prioridad: cualquier click ahí
+        // cancela el modo rítmico para que no compita enviando colores/brillo distintos.
+        StopRhythmMode();
+
         var targets = GetThumbTargets();
         switch (id)
         {
