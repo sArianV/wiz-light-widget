@@ -138,6 +138,30 @@
             </Setter>
         </Style>
 
+        <Style x:Key="IconGhostButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="24"/>
+            <Setter Property="Height" Value="24"/>
+            <Setter Property="Margin" Value="4,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#8A8A8A"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="SwatchButtonStyle" TargetType="Button">
             <Setter Property="Width" Value="22"/>
             <Setter Property="Height" Value="22"/>
@@ -200,16 +224,19 @@
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <ToggleButton Grid.Column="0" IsChecked="{Binding IsFavorite}"
                                                   Style="{StaticResource FavoriteStarStyle}"
                                                   Click="FavoriteToggle_Click"
                                                   ToolTip="Marcar como favorito (controlado desde la barra de tareas)"/>
-                                    <TextBox Grid.Column="1" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                    <TextBox x:Name="NameTextBox" Grid.Column="1" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
                                              Background="Transparent" BorderThickness="0" Foreground="#F5F5F5"
                                              FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center"
                                              Padding="0" Margin="4,0,0,0" LostFocus="NameTextBox_LostFocus"/>
-                                    <ToggleButton Grid.Column="2" IsChecked="{Binding IsOn}"
+                                    <Button Grid.Column="2" Content="&#9998;" Style="{StaticResource IconGhostButtonStyle}"
+                                            Click="EditName_Click" ToolTip="Renombrar"/>
+                                    <ToggleButton Grid.Column="3" IsChecked="{Binding IsOn}"
                                                   Style="{StaticResource SwitchToggleStyle}"
                                                   Click="PowerToggle_Click"/>
                                 </Grid>
@@ -290,7 +317,15 @@
             </ItemsControl>
         </ScrollViewer>
 
-        <TextBlock x:Name="StatusText" Grid.Row="2" Margin="16,4,16,12" Opacity="0.55" FontSize="12"
-                   Text="Buscando bombillos en tu red..." TextWrapping="Wrap"/>
+        <Grid Grid.Row="2" Margin="16,4,16,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="StatusText" Grid.Column="0" Opacity="0.55" FontSize="12"
+                       Text="Buscando bombillos en tu red..." TextWrapping="Wrap"/>
+            <TextBlock x:Name="VersionText" Grid.Column="1" Opacity="0.35" FontSize="11"
+                       VerticalAlignment="Bottom" Margin="8,0,0,0"/>
+        </Grid>
     </Grid>
 </Window>

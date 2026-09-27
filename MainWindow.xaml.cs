@@ -46,6 +46,7 @@ public partial class MainWindow : Window
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
+        VersionText.Text = $"v{GetAppVersion()}";
         SetupTrayIcon();
         SetupThumbnailToolbar();
         await RunDiscoveryAsync();
@@ -99,6 +100,20 @@ public partial class MainWindow : Window
         menu.Items.Add("Encender todas", null, async (s, e) => await SetAllPowerAsync(true));
         menu.Items.Add("Apagar todas", null, async (s, e) => await SetAllPowerAsync(false));
         menu.Items.Add(new WinForms.ToolStripSeparator());
+
+        var startupItem = new WinForms.ToolStripMenuItem("Iniciar con Windows")
+        {
+            CheckOnClick = true,
+            Checked = StartupService.IsEnabled()
+        };
+        startupItem.Click += (s, e) => StartupService.SetEnabled(startupItem.Checked);
+        menu.Items.Add(startupItem);
+
+        menu.Items.Add(new WinForms.ToolStripSeparator());
+        var versionItem = new WinForms.ToolStripMenuItem($"Versión {GetAppVersion()}") { Enabled = false };
+        menu.Items.Add(versionItem);
+
+        menu.Items.Add(new WinForms.ToolStripSeparator());
         menu.Items.Add("Salir", null, (s, e) => ExitApplication());
         _trayIcon.ContextMenuStrip = menu;
 
@@ -113,6 +128,12 @@ public partial class MainWindow : Window
     }
 
     private void ExitApplication() => Close();
+
+    private static string GetAppVersion()
+    {
+        var v = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+        return v == null ? "desconocida" : $"{v.Major}.{v.Minor}.{v.Build}";
+    }
 
     // ----- Taskbar thumbnail toolbar (hover controls, like Spotify) -----
 
@@ -239,6 +260,16 @@ public partial class MainWindow : Window
     {
         if (((FrameworkElement)sender).DataContext is BulbViewModel bulb)
             _store.SetName(bulb.Mac, bulb.Name);
+    }
+
+    private void EditName_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement fe) return;
+        if (fe.FindName("NameTextBox") is TextBox nameBox)
+        {
+            nameBox.Focus();
+            nameBox.SelectAll();
+        }
     }
 
     private void FavoriteToggle_Click(object sender, RoutedEventArgs e)
