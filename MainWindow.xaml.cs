@@ -25,6 +25,8 @@ public partial class MainWindow : Window
     private readonly WizDiscoveryService _discovery = new();
     private readonly WizControlService _control = new();
     private readonly BulbStore _store = new();
+    private readonly SceneStore _sceneStore = new();
+    private readonly ObservableCollection<Scene> _scenes = new();
     private readonly TaskbarThumbnailManager _taskbarMgr = new();
     private readonly AudioReactiveService _audioReactive = new();
     private readonly Dictionary<string, DispatcherTimer> _brightnessDebounce = new();
@@ -48,6 +50,10 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         BulbList.ItemsSource = _bulbs;
+        ScenesList.ItemsSource = _scenes;
+
+        foreach (var s in _sceneStore.Scenes) _scenes.Add(s);
+        UpdateScenesEmptyState();
 
         Loaded += MainWindow_Loaded;
         Closing += MainWindow_Closing;
@@ -653,6 +659,115 @@ public partial class MainWindow : Window
 
     private static string DefaultName(WizBulbState s) =>
         "Bombillo " + (s.Mac.Length >= 4 ? s.Mac[^4..] : s.Ip);
+
+    // ----- Escenas (foto del estado de todos los focos, aplicable con un click) -----
+
+    private void ScenesButton_Click(object sender, RoutedEventArgs e)
+    {
+        NewSceneNamePanel.Visibility = Visibility.Collapsed;
+        NewSceneButton.Visibility = Visibility.Visible;
+        ScenesPopup.IsOpen = !ScenesPopup.IsOpen;
+    }
+
+    private void NewSceneButton_Click(object sender, RoutedEventArgs e)
+    {
+        NewSceneNameBox.Text = $"Escena {_scenes.Count + 1}";
+        NewSceneNamePanel.Visibility = Visibility.Visible;
+        NewSceneButton.Visibility = Visibility.Collapsed;
+        NewSceneNameBox.Focus();
+        NewSceneNameBox.SelectAll();
+    }
+
+    private void SaveSceneCancel_Click(object sender, RoutedEventArgs e)
+    {
+        NewSceneNamePanel.Visibility = Visibility.Collapsed;
+        NewSceneButton.Visibility = Visibility.Visible;
+    }
+
+    private void NewSceneNameBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) SaveSceneConfirm_Click(sender, e);
+        else if (e.Key == Key.Escape) SaveSceneCancel_Click(sender, e);
+    }
+
+    private void SaveSceneConfirm_Click(object sender, RoutedEventArgs e)
+    {
+        var name = NewSceneNameBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(name)) return;
+
+        var scene = new Scene
+        {
+            Name = name,
+            Bulbs = _bulbs.Select(b => new SceneBulbState
+            {
+                Mac = b.Mac,
+                IsOn = b.IsOn,
+                Brightness = (int)Math.Round(b.Brightness),
+                R = b.Color.R,
+                G = b.Color.G,
+                B = b.Color.B
+            }).ToList()
+        };
+
+        _sceneStore.AddOrUpdate(scene);
+
+        var existing = _scenes.FirstOrDefault(s => s.Name == name);
+        if (existing != null) _scenes[_scenes.IndexOf(existing)] = scene;
+        else _scenes.Add(scene);
+        UpdateScenesEmptyState();
+
+        NewSceneNamePanel.Visibility = Visibility.Collapsed;
+        NewSceneButton.Visibility = Visibility.Visible;
+        ScenesPopup.IsOpen = false;
+        SceneSelectorLabel.Text = name;
+        StatusText.Text = $"Escena \"{name}\" guardada.";
+    }
+
+    private async void ApplySceneButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not string name) return;
+        var scene = _scenes.FirstOrDefault(s => s.Name == name);
+        if (scene == null) return;
+
+        ScenesPopup.IsOpen = false;
+        StopRhythmMode(); // aplicar una escena tiene la misma prioridad que los controles manuales
+
+        var tasks = new List<Task>();
+        foreach (var entry in scene.Bulbs)
+        {
+            var bulb = _bulbs.FirstOrDefault(b => b.Mac == entry.Mac);
+            if (bulb == null || !bulb.IsOnline) continue;
+
+            bulb.IsOn = entry.IsOn;
+            if (entry.IsOn)
+            {
+                bulb.Brightness = entry.Brightness;
+                bulb.Color = Color.FromRgb(entry.R, entry.G, entry.B);
+                tasks.Add(SafeSetColorAndBrightness(bulb.Ip, entry.R, entry.G, entry.B, entry.Brightness));
+            }
+            else
+            {
+                tasks.Add(SafeSetPower(bulb.Ip, false));
+            }
+        }
+
+        await Task.WhenAll(tasks);
+        UpdateAggregatePowerIcon();
+        SceneSelectorLabel.Text = name;
+        StatusText.Text = $"Escena \"{name}\" aplicada.";
+    }
+
+    private void DeleteSceneButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not string name) return;
+        _sceneStore.Remove(name);
+        var scene = _scenes.FirstOrDefault(s => s.Name == name);
+        if (scene != null) _scenes.Remove(scene);
+        UpdateScenesEmptyState();
+    }
+
+    private void UpdateScenesEmptyState() =>
+        NoScenesText.Visibility = _scenes.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
     // ----- Per-bulb UI events -----
 

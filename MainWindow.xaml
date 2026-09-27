@@ -311,6 +311,27 @@
             </Setter>
         </Style>
 
+        <Style x:Key="SceneSelectorButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="38"/>
+            <Setter Property="Background" Value="#2C2C2E"/>
+            <Setter Property="Foreground" Value="#F5F5F5"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="10" Padding="12,0">
+                            <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#3A3A3C"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="SwatchMoreButtonStyle" TargetType="Button" BasedOn="{StaticResource SwatchButtonStyle}">
             <Setter Property="Background" Value="#2A2A2A"/>
             <Setter Property="Foreground" Value="#CCCCCC"/>
@@ -331,6 +352,7 @@
 
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -357,7 +379,65 @@
             </StackPanel>
         </Grid>
 
-        <Grid Grid.Row="1" Margin="16,4,16,12">
+        <Button x:Name="ScenesButton" Grid.Row="1" Margin="16,10,16,0"
+                Style="{StaticResource SceneSelectorButtonStyle}" Click="ScenesButton_Click"
+                ToolTip="Guardar el estado actual de todos los focos como escena, o aplicar una guardada">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="SceneSelectorLabel" Grid.Column="0" Text="Escenas"
+                           VerticalAlignment="Center" FontSize="13"/>
+                <TextBlock Grid.Column="1" Text="&#xE70D;" FontFamily="Segoe MDL2 Assets"
+                           FontSize="10" Opacity="0.5" VerticalAlignment="Center"/>
+            </Grid>
+        </Button>
+
+        <Popup x:Name="ScenesPopup" Grid.Row="1" PlacementTarget="{Binding ElementName=ScenesButton}"
+               Placement="Bottom" StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade">
+            <Border Background="#242424" CornerRadius="10" Padding="14"
+                    BorderBrush="#3A3A3A" BorderThickness="1">
+                <StackPanel MinWidth="260" MaxWidth="300">
+                    <TextBlock Text="Escenas" FontSize="13" FontWeight="SemiBold"
+                               Foreground="#F5F5F5" Margin="0,0,0,10"/>
+                    <TextBlock x:Name="NoScenesText" Text="No hay escenas guardadas todavía."
+                               FontSize="12" Opacity="0.5" Margin="0,0,0,10" TextWrapping="Wrap"/>
+                    <ItemsControl x:Name="ScenesList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0" Content="{Binding Name}" Tag="{Binding Name}"
+                                            Style="{StaticResource TextLinkButtonStyle}"
+                                            HorizontalContentAlignment="Left" Click="ApplySceneButton_Click"/>
+                                    <Button Grid.Column="1" Content="&#10005;" Tag="{Binding Name}"
+                                            Style="{StaticResource IconGhostButtonStyle}" Width="22" Height="22" FontSize="10"
+                                            Click="DeleteSceneButton_Click" ToolTip="Eliminar escena"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Border Height="1" Background="#3A3A3A" Margin="0,4,0,10"/>
+                    <StackPanel x:Name="NewSceneNamePanel" Visibility="Collapsed" Margin="0,0,0,4">
+                        <TextBox x:Name="NewSceneNameBox" Background="#1E1E20" BorderBrush="#3A3A3A" BorderThickness="1"
+                                 Foreground="#F5F5F5" Padding="6,5" Margin="0,0,0,8" KeyDown="NewSceneNameBox_KeyDown"/>
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="Guardar" Style="{StaticResource AccentButtonStyle}"
+                                    Click="SaveSceneConfirm_Click" Margin="0,0,8,0"/>
+                            <Button Content="Cancelar" Style="{StaticResource TextLinkButtonStyle}" Click="SaveSceneCancel_Click"/>
+                        </StackPanel>
+                    </StackPanel>
+                    <Button x:Name="NewSceneButton" Content="+ Guardar escena actual"
+                            Style="{StaticResource TextLinkButtonStyle}" Click="NewSceneButton_Click"/>
+                </StackPanel>
+            </Border>
+        </Popup>
+
+        <Grid Grid.Row="2" Margin="16,4,16,12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
@@ -484,7 +564,7 @@
             </Popup>
         </Grid>
 
-        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Margin="8,0"
+        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" Margin="8,0"
                       AllowDrop="True" DragOver="BulbList_DragOver">
             <ItemsControl x:Name="BulbList" Margin="8,0,8,8">
                 <ItemsControl.ItemTemplate>
@@ -641,7 +721,7 @@
             </ItemsControl>
         </ScrollViewer>
 
-        <Grid Grid.Row="3" Margin="16,4,16,12">
+        <Grid Grid.Row="4" Margin="16,4,16,12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
