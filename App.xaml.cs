@@ -1,5 +1,7 @@
-using System.Windows;
+using System.Diagnostics;
 using System.Threading;
+using System.Windows;
+using WizLightWidget.Services;
 
 namespace WizLightWidget;
 
@@ -19,6 +21,45 @@ public partial class App : Application
         }
 
         base.OnStartup(e);
+
+        var splash = new SplashWindow();
+        splash.Show();
+        _ = BootstrapAsync(splash);
+    }
+
+    private async Task BootstrapAsync(SplashWindow splash)
+    {
+        splash.SetStatus("Buscando actualizaciones...");
+
+        try
+        {
+            var updateService = new UpdateService();
+            var update = await updateService.CheckForUpdateAsync();
+
+            if (update != null)
+            {
+                splash.SetStatus($"Descargando versión {update.Version}...");
+                var progress = new Progress<double>(p => splash.SetProgress(p));
+                var tempExe = await updateService.DownloadUpdateAsync(update.DownloadUrl, progress);
+
+                var currentExe = Process.GetCurrentProcess().MainModule?.FileName;
+                if (!string.IsNullOrEmpty(currentExe))
+                {
+                    splash.SetStatus("Instalando actualización...");
+                    UpdateService.LaunchUpdateAndExit(tempExe, currentExe);
+                    return; // El proceso se cierra desde LaunchUpdateAndExit.
+                }
+            }
+        }
+        catch
+        {
+            // Si algo falla (sin internet, descarga interrumpida, etc.) seguimos con la versión actual.
+        }
+
+        var main = new MainWindow();
+        MainWindow = main;
+        main.Show();
+        splash.Close();
     }
 
     protected override void OnExit(ExitEventArgs e)
