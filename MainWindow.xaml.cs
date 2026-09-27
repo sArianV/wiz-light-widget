@@ -1,9 +1,11 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Threading;
@@ -47,6 +49,7 @@ public partial class MainWindow : Window
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         VersionText.Text = $"v{GetAppVersion()}";
+        WindowCornerHelper.ApplyRoundedCorners(new WindowInteropHelper(this).Handle);
         SetupTrayIcon();
         SetupThumbnailToolbar();
         await RunDiscoveryAsync();
@@ -129,6 +132,44 @@ public partial class MainWindow : Window
 
     private void ExitApplication() => Close();
 
+    // ----- Barra de título estilo macOS (semáforos + arrastre) -----
+
+    private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount == 2)
+        {
+            ToggleMaximize();
+            return;
+        }
+        if (WindowState != WindowState.Maximized)
+            DragMove();
+    }
+
+    private void CloseButton_Click(object sender, RoutedEventArgs e) => ExitApplication();
+
+    private void MinimizeButton_Click(object sender, RoutedEventArgs e) =>
+        WindowState = WindowState.Minimized;
+
+    private void MaximizeButton_Click(object sender, RoutedEventArgs e) => ToggleMaximize();
+
+    private void ToggleMaximize() =>
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+
+    private void MainWindow_StateChanged(object? sender, EventArgs e)
+    {
+        if (WindowState == WindowState.Maximized)
+        {
+            var workArea = SystemParameters.WorkArea;
+            MaxWidth = workArea.Width;
+            MaxHeight = workArea.Height;
+        }
+        else
+        {
+            ClearValue(MaxWidthProperty);
+            ClearValue(MaxHeightProperty);
+        }
+    }
+
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
         StartWithWindowsCheckBox.IsChecked = StartupService.IsEnabled();
@@ -137,6 +178,45 @@ public partial class MainWindow : Window
 
     private void StartWithWindowsCheckBox_Click(object sender, RoutedEventArgs e) =>
         StartupService.SetEnabled(StartWithWindowsCheckBox.IsChecked == true);
+
+    private async void CheckForUpdatesButton_Click(object sender, RoutedEventArgs e)
+    {
+        CheckForUpdatesButton.IsEnabled = false;
+        CheckForUpdatesButton.Content = "Buscando...";
+
+        try
+        {
+            var updateService = new UpdateService();
+            var update = await updateService.CheckForUpdateAsync();
+
+            if (update == null)
+            {
+                CheckForUpdatesButton.Content = "Ya tienes la última versión";
+            }
+            else
+            {
+                var progress = new Progress<double>(p =>
+                    CheckForUpdatesButton.Content = $"Descargando {(int)(p * 100)}%...");
+                var tempExe = await updateService.DownloadUpdateAsync(update.DownloadUrl, progress);
+
+                var currentExe = Process.GetCurrentProcess().MainModule?.FileName;
+                if (!string.IsNullOrEmpty(currentExe))
+                {
+                    CheckForUpdatesButton.Content = "Instalando...";
+                    UpdateService.LaunchUpdateAndExit(tempExe, currentExe);
+                    return; // El proceso se cierra desde LaunchUpdateAndExit.
+                }
+            }
+        }
+        catch
+        {
+            CheckForUpdatesButton.Content = "Error al buscar actualizaciones";
+        }
+
+        await Task.Delay(2500);
+        CheckForUpdatesButton.Content = "Buscar actualizaciones";
+        CheckForUpdatesButton.IsEnabled = true;
+    }
 
     private static string GetAppVersion()
     {
