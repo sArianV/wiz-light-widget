@@ -662,8 +662,13 @@ public partial class MainWindow : Window
 
     // ----- Escenas (foto del estado de todos los focos, aplicable con un click) -----
 
+    // Nombre original de la escena que se está renombrando, o null si el panel de
+    // nombre se está usando para crear una escena nueva (mismo panel para ambos casos).
+    private string? _renamingSceneName;
+
     private void ScenesButton_Click(object sender, RoutedEventArgs e)
     {
+        _renamingSceneName = null;
         NewSceneNamePanel.Visibility = Visibility.Collapsed;
         NewSceneButton.Visibility = Visibility.Visible;
         ScenesPopup.IsOpen = !ScenesPopup.IsOpen;
@@ -671,7 +676,20 @@ public partial class MainWindow : Window
 
     private void NewSceneButton_Click(object sender, RoutedEventArgs e)
     {
+        _renamingSceneName = null;
         NewSceneNameBox.Text = $"Escena {_scenes.Count + 1}";
+        NewSceneNamePanel.Visibility = Visibility.Visible;
+        NewSceneButton.Visibility = Visibility.Collapsed;
+        NewSceneNameBox.Focus();
+        NewSceneNameBox.SelectAll();
+    }
+
+    private void RenameSceneButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not string name) return;
+
+        _renamingSceneName = name;
+        NewSceneNameBox.Text = name;
         NewSceneNamePanel.Visibility = Visibility.Visible;
         NewSceneButton.Visibility = Visibility.Collapsed;
         NewSceneNameBox.Focus();
@@ -680,6 +698,7 @@ public partial class MainWindow : Window
 
     private void SaveSceneCancel_Click(object sender, RoutedEventArgs e)
     {
+        _renamingSceneName = null;
         NewSceneNamePanel.Visibility = Visibility.Collapsed;
         NewSceneButton.Visibility = Visibility.Visible;
     }
@@ -695,6 +714,18 @@ public partial class MainWindow : Window
         var name = NewSceneNameBox.Text.Trim();
         if (string.IsNullOrWhiteSpace(name)) return;
 
+        if (_renamingSceneName != null) RenameScene(_renamingSceneName, name);
+        else SaveCurrentStateAsScene(name);
+
+        _renamingSceneName = null;
+        NewSceneNamePanel.Visibility = Visibility.Collapsed;
+        NewSceneButton.Visibility = Visibility.Visible;
+        ScenesPopup.IsOpen = false;
+        SceneSelectorLabel.Text = name;
+    }
+
+    private void SaveCurrentStateAsScene(string name)
+    {
         var scene = new Scene
         {
             Name = name,
@@ -715,12 +746,29 @@ public partial class MainWindow : Window
         if (existing != null) _scenes[_scenes.IndexOf(existing)] = scene;
         else _scenes.Add(scene);
         UpdateScenesEmptyState();
-
-        NewSceneNamePanel.Visibility = Visibility.Collapsed;
-        NewSceneButton.Visibility = Visibility.Visible;
-        ScenesPopup.IsOpen = false;
-        SceneSelectorLabel.Text = name;
         StatusText.Text = $"Escena \"{name}\" guardada.";
+    }
+
+    /// <summary>Conserva los focos guardados, solo cambia el nombre. Si el nuevo nombre
+    /// coincide con otra escena existente, esa otra queda reemplazada (mismo criterio
+    /// que guardar una escena nueva con un nombre repetido).</summary>
+    private void RenameScene(string oldName, string newName)
+    {
+        var original = _scenes.FirstOrDefault(s => s.Name == oldName);
+        if (original == null) return;
+
+        var renamed = new Scene { Name = newName, Bulbs = original.Bulbs };
+
+        if (oldName != newName)
+        {
+            _sceneStore.Remove(oldName);
+            var collision = _scenes.FirstOrDefault(s => s.Name == newName && !ReferenceEquals(s, original));
+            if (collision != null) _scenes.Remove(collision);
+        }
+
+        _sceneStore.AddOrUpdate(renamed);
+        _scenes[_scenes.IndexOf(original)] = renamed;
+        StatusText.Text = $"Escena renombrada a \"{newName}\".";
     }
 
     private async void ApplySceneButton_Click(object sender, RoutedEventArgs e)

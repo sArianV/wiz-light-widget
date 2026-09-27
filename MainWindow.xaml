@@ -410,11 +410,15 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <Button Grid.Column="0" Content="{Binding Name}" Tag="{Binding Name}"
                                             Style="{StaticResource TextLinkButtonStyle}"
                                             HorizontalContentAlignment="Left" Click="ApplySceneButton_Click"/>
-                                    <Button Grid.Column="1" Content="&#10005;" Tag="{Binding Name}"
+                                    <Button Grid.Column="1" Content="&#9998;" Tag="{Binding Name}"
+                                            Style="{StaticResource IconGhostButtonStyle}" Width="22" Height="22" FontSize="11"
+                                            Click="RenameSceneButton_Click" ToolTip="Renombrar escena"/>
+                                    <Button Grid.Column="2" Content="&#10005;" Tag="{Binding Name}"
                                             Style="{StaticResource IconGhostButtonStyle}" Width="22" Height="22" FontSize="10"
                                             Click="DeleteSceneButton_Click" ToolTip="Eliminar escena"/>
                                 </Grid>
