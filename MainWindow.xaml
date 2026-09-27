@@ -259,23 +259,26 @@
             </Setter>
         </Style>
 
-        <Style x:Key="RhythmButtonStyle" TargetType="Button">
-            <Setter Property="Width" Value="30"/>
+        <!-- Botón "fantasma" reutilizable: ícono (y opcionalmente texto) que pasa de gris a
+             amarillo (AccentBrush) en hover, sin fondo. El contenido (Content) define qué
+             se muestra: un solo glyph, o un StackPanel con ícono+texto; y como ninguno
+             de esos elementos fija su propio Foreground, heredan el de este Button, así que
+             el trigger de hover solo necesita tocar una propiedad para que todo cambie junto. -->
+        <Style x:Key="HoverAccentButtonStyle" TargetType="Button">
             <Setter Property="Height" Value="30"/>
             <Setter Property="Margin" Value="0,0,8,0"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="#8A8A8A"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="15">
-                            <TextBlock Text="&#127925;" FontSize="14"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <Border Background="{TemplateBinding Background}" CornerRadius="15" Padding="10,0">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bg" Property="Background" Value="#3A3A3C"/>
+                                <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -363,14 +366,19 @@
             </Grid.ColumnDefinitions>
 
             <Button x:Name="RhythmButton" Grid.Column="1"
-                    Style="{StaticResource RhythmButtonStyle}" Click="RhythmButton_Click"
-                    ToolTip="Modo rítmico: elegí arcoíris o colores fijos para pulsar con la música"/>
+                    Style="{StaticResource HoverAccentButtonStyle}" Click="RhythmButton_Click"
+                    ToolTip="Modo rítmico: elegí arcoíris o colores fijos para pulsar con la música">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="&#9835;" FontSize="19" VerticalAlignment="Center"/>
+                    <TextBlock Text="DJ" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" Margin="5,0,0,0"/>
+                </StackPanel>
+            </Button>
             <Button x:Name="SettingsButton" Grid.Column="2" Content="&#xE713;" FontSize="15"
                     FontFamily="Segoe MDL2 Assets"
                     Style="{StaticResource IconGhostButtonStyle}" Click="SettingsButton_Click"
                     ToolTip="Configuración" Width="30" Height="30" Margin="0,0,8,0"/>
-            <Button x:Name="DiscoverButton" Grid.Column="3" Content="Buscar"
-                    Style="{StaticResource AccentButtonStyle}" Click="DiscoverButton_Click"/>
+            <Button x:Name="DiscoverButton" Grid.Column="0" HorizontalAlignment="Left" Content="Escanear dispositivos"
+                    Style="{StaticResource TextLinkButtonStyle}" Click="DiscoverButton_Click"/>
 
             <Popup x:Name="RhythmPopup" PlacementTarget="{Binding ElementName=RhythmButton}"
                    Placement="Bottom" StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade">
