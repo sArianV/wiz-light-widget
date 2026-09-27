@@ -4,11 +4,13 @@ using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Threading;
+using WizLightWidget.Controls;
 using WizLightWidget.Models;
 using WizLightWidget.Native;
 using WizLightWidget.Services;
@@ -537,6 +539,7 @@ public partial class MainWindow : Window
         }
         finally
         {
+            ApplyStoredBulbOrder();
             if (!silent) DiscoverButton.IsEnabled = true;
             UpdateAggregatePowerIcon();
         }
@@ -576,6 +579,83 @@ public partial class MainWindow : Window
         if (((FrameworkElement)sender).DataContext is not BulbViewModel bulb) return;
         _store.SetFavorite(bulb.Mac, bulb.IsFavorite);
         UpdateAggregatePowerIcon();
+    }
+
+    // ----- Reordenar la lista arrastrando desde la manija de cada tarjeta -----
+    // La manija funciona incluso con el foco desconectado (vive fuera del StackPanel
+    // que se deshabilita con IsOnline). El orden se persiste por MAC en bulbs.json.
+
+    private Point _dragStartPoint;
+    private DragAdorner? _dragAdorner;
+
+    private void DragHandle_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e) =>
+        _dragStartPoint = e.GetPosition(null);
+
+    private void DragHandle_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed) return;
+        if (sender is not FrameworkElement fe || fe.DataContext is not BulbViewModel bulb) return;
+
+        var pos = e.GetPosition(null);
+        if (Math.Abs(pos.X - _dragStartPoint.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(pos.Y - _dragStartPoint.Y) < SystemParameters.MinimumVerticalDragDistance)
+            return;
+
+        if (fe.FindName("BulbCard") is not Border card) return;
+
+        var grabOffset = Mouse.GetPosition(card);
+        var layer = AdornerLayer.GetAdornerLayer(BulbList);
+        if (layer != null)
+        {
+            _dragAdorner = new DragAdorner(BulbList, card, grabOffset);
+            _dragAdorner.UpdatePosition(Mouse.GetPosition(BulbList));
+            layer.Add(_dragAdorner);
+        }
+
+        try
+        {
+            DragDrop.DoDragDrop(fe, bulb, DragDropEffects.Move);
+        }
+        finally
+        {
+            if (_dragAdorner != null)
+            {
+                layer?.Remove(_dragAdorner);
+                _dragAdorner = null;
+            }
+        }
+    }
+
+    private void BulbList_DragOver(object sender, DragEventArgs e) =>
+        _dragAdorner?.UpdatePosition(e.GetPosition(BulbList));
+
+    private void BulbCard_Drop(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(typeof(BulbViewModel))) return;
+        if (e.Data.GetData(typeof(BulbViewModel)) is not BulbViewModel dragged) return;
+        if (sender is not FrameworkElement fe || fe.DataContext is not BulbViewModel target) return;
+        if (ReferenceEquals(dragged, target)) return;
+
+        int oldIndex = _bulbs.IndexOf(dragged);
+        int newIndex = _bulbs.IndexOf(target);
+        if (oldIndex < 0 || newIndex < 0) return;
+
+        _bulbs.Move(oldIndex, newIndex);
+        PersistBulbOrder();
+    }
+
+    private void PersistBulbOrder() =>
+        _store.SetOrders(_bulbs.Select((b, i) => (b.Mac, i)));
+
+    /// <summary>Ordena la lista según lo guardado en bulbs.json; los focos nuevos van al final.</summary>
+    private void ApplyStoredBulbOrder()
+    {
+        var sorted = _bulbs.OrderBy(b => _store.GetOrder(b.Mac, int.MaxValue)).ToList();
+        for (int i = 0; i < sorted.Count; i++)
+        {
+            int currentIndex = _bulbs.IndexOf(sorted[i]);
+            if (currentIndex != i) _bulbs.Move(currentIndex, i);
+        }
     }
 
     private void BrightnessSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)

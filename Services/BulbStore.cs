@@ -7,6 +7,7 @@ public class BulbPrefs
 {
     public string Name { get; set; } = "";
     public bool IsFavorite { get; set; }
+    public int? Order { get; set; }
 }
 
 public class BulbStore
@@ -62,6 +63,9 @@ public class BulbStore
     public bool GetFavorite(string mac) =>
         _prefs.TryGetValue(mac, out var p) && p.IsFavorite;
 
+    public int GetOrder(string mac, int fallback) =>
+        _prefs.TryGetValue(mac, out var p) && p.Order.HasValue ? p.Order.Value : fallback;
+
     public void SetName(string mac, string name)
     {
         GetOrCreate(mac).Name = name;
@@ -71,6 +75,14 @@ public class BulbStore
     public void SetFavorite(string mac, bool isFavorite)
     {
         GetOrCreate(mac).IsFavorite = isFavorite;
+        Save();
+    }
+
+    /// <summary>Persiste el orden de todos los focos de una sola vez (un solo guardado a disco).</summary>
+    public void SetOrders(IEnumerable<(string Mac, int Order)> orders)
+    {
+        foreach (var (mac, order) in orders)
+            GetOrCreate(mac).Order = order;
         Save();
     }
 

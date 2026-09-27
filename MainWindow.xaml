@@ -432,12 +432,16 @@
             </Popup>
         </Grid>
 
-        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Margin="8,0">
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Margin="8,0"
+                      AllowDrop="True" DragOver="BulbList_DragOver">
             <ItemsControl x:Name="BulbList" Margin="8,0,8,8">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border Background="{StaticResource CardBrush}" CornerRadius="10" Padding="14" Margin="0,0,0,10"
-                                IsEnabled="{Binding IsOnline}">
+                        <!-- El Border entero (incluida la manija) queda SIEMPRE habilitado para poder
+                             arrastrar/soltar incluso con el foco desconectado; solo el contenido interactivo
+                             (StackPanel de la derecha) se deshabilita y grisa según IsOnline. -->
+                        <Border x:Name="BulbCard" Background="{StaticResource CardBrush}" CornerRadius="10"
+                                Padding="14" Margin="0,0,0,10" AllowDrop="True" Drop="BulbCard_Drop">
                             <Border.Style>
                                 <Style TargetType="Border">
                                     <Setter Property="Opacity" Value="1"/>
@@ -448,113 +452,137 @@
                                     </Style.Triggers>
                                 </Style>
                             </Border.Style>
-                            <StackPanel>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <ToggleButton Grid.Column="0" IsChecked="{Binding IsFavorite}"
-                                                  Style="{StaticResource FavoriteStarStyle}"
-                                                  Click="FavoriteToggle_Click"
-                                                  ToolTip="Marcar como favorito (controlado desde la barra de tareas)"/>
-                                    <TextBox x:Name="NameTextBox" Grid.Column="1" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
-                                             Background="Transparent" BorderThickness="0" Foreground="#F5F5F5"
-                                             FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center"
-                                             Padding="0" Margin="4,0,0,0" LostFocus="NameTextBox_LostFocus"/>
-                                    <Button Grid.Column="2" Content="&#9998;" Style="{StaticResource IconGhostButtonStyle}"
-                                            Click="EditName_Click" ToolTip="Renombrar"/>
-                                    <ToggleButton Grid.Column="3" IsChecked="{Binding IsOn}"
-                                                  Style="{StaticResource SwitchToggleStyle}"
-                                                  Click="PowerToggle_Click"/>
-                                </Grid>
-                                <StackPanel Orientation="Horizontal" Margin="0,2,0,12">
-                                    <TextBlock Text="{Binding Ip}" FontSize="11" Opacity="0.45"/>
-                                    <TextBlock Text=" · desconectado" FontSize="11" Foreground="#FF6B6B">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsOnline}" Value="False">
-                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <Border Grid.Column="0" Width="20" Background="Transparent"
+                                        Cursor="SizeAll" Margin="0,0,8,0" VerticalAlignment="Stretch"
+                                        PreviewMouseLeftButtonDown="DragHandle_PreviewMouseLeftButtonDown"
+                                        PreviewMouseMove="DragHandle_PreviewMouseMove"
+                                        ToolTip="Arrastrar para reordenar">
+                                    <UniformGrid Columns="2" Rows="3" Width="8" Height="14"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                  IsHitTestVisible="False">
+                                        <Ellipse Width="3" Height="3" Fill="#6A6A6E" Margin="1"/>
+                                        <Ellipse Width="3" Height="3" Fill="#6A6A6E" Margin="1"/>
+                                        <Ellipse Width="3" Height="3" Fill="#6A6A6E" Margin="1"/>
+                                        <Ellipse Width="3" Height="3" Fill="#6A6A6E" Margin="1"/>
+                                        <Ellipse Width="3" Height="3" Fill="#6A6A6E" Margin="1"/>
+                                        <Ellipse Width="3" Height="3" Fill="#6A6A6E" Margin="1"/>
+                                    </UniformGrid>
+                                </Border>
+
+                                <StackPanel Grid.Column="1" IsEnabled="{Binding IsOnline}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <ToggleButton Grid.Column="0" IsChecked="{Binding IsFavorite}"
+                                                      Style="{StaticResource FavoriteStarStyle}"
+                                                      Click="FavoriteToggle_Click"
+                                                      ToolTip="Marcar como favorito (controlado desde la barra de tareas)"/>
+                                        <TextBox x:Name="NameTextBox" Grid.Column="1" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                                 Background="Transparent" BorderThickness="0" Foreground="#F5F5F5"
+                                                 FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center"
+                                                 Padding="0" Margin="4,0,0,0" LostFocus="NameTextBox_LostFocus"/>
+                                        <Button Grid.Column="2" Content="&#9998;" Style="{StaticResource IconGhostButtonStyle}"
+                                                Click="EditName_Click" ToolTip="Renombrar"/>
+                                        <ToggleButton Grid.Column="3" IsChecked="{Binding IsOn}"
+                                                      Style="{StaticResource SwitchToggleStyle}"
+                                                      Click="PowerToggle_Click"/>
+                                    </Grid>
+                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,12">
+                                        <TextBlock Text="{Binding Ip}" FontSize="11" Opacity="0.45"/>
+                                        <TextBlock Text=" · desconectado" FontSize="11" Foreground="#FF6B6B">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsOnline}" Value="False">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
+
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Slider Grid.Column="0" Minimum="10" Maximum="100" Value="{Binding Brightness}"
+                                                Margin="0,0,8,0" VerticalAlignment="Center"
+                                                Style="{StaticResource AccentSliderStyle}"
+                                                ValueChanged="BrightnessSlider_ValueChanged"
+                                                PreviewMouseLeftButtonDown="BrightnessSlider_PreviewMouseLeftButtonDown"
+                                                PreviewMouseMove="BrightnessSlider_PreviewMouseMove"
+                                                PreviewMouseLeftButtonUp="BrightnessSlider_PreviewMouseLeftButtonUp"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding Brightness, StringFormat={}{0:0}%}"
+                                                   Width="38" Opacity="0.7" FontSize="12" VerticalAlignment="Center"/>
+                                    </Grid>
+
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Tag="TEMP:2700" Background="#FFD9A6" Style="{StaticResource SwatchButtonStyle}" Click="ColorSwatch_Click" ToolTip="Blanco cálido (brillo máximo real)"/>
+                                        <Button Tag="TEMP:6500" Background="#EAF4FF" Style="{StaticResource SwatchButtonStyle}" Click="ColorSwatch_Click" ToolTip="Blanco frío (brillo máximo real)"/>
+                                        <Button Tag="#FF6B6B" Background="#FF6B6B" Style="{StaticResource SwatchButtonStyle}" Click="ColorSwatch_Click"/>
+                                        <Button Tag="#FFA500" Background="#FFA500" Style="{StaticResource SwatchButtonStyle}" Click="ColorSwatch_Click"/>
+                                        <Button Tag="#FFD93D" Background="#FFD93D" Style="{StaticResource SwatchButtonStyle}" Click="ColorSwatch_Click"/>
+                                        <Button Tag="#6BCB77" Background="#6BCB77" Style="{StaticResource SwatchButtonStyle}" Click="ColorSwatch_Click"/>
+                                        <Button Tag="#4D96FF" Background="#4D96FF" Style="{StaticResource SwatchButtonStyle}" Click="ColorSwatch_Click"/>
+                                        <Button Tag="#9B5DE5" Background="#9B5DE5" Style="{StaticResource SwatchButtonStyle}" Click="ColorSwatch_Click"/>
+                                        <Button x:Name="MoreColorsButton" Content="&#8230;" Style="{StaticResource SwatchMoreButtonStyle}" Click="CustomColor_Click"/>
+
+                                        <Popup x:Name="ColorPickerPopup" PlacementTarget="{Binding ElementName=MoreColorsButton}"
+                                               Placement="Bottom" StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade">
+                                            <Border Background="#242424" CornerRadius="12" Padding="12"
+                                                    BorderBrush="#3A3A3A" BorderThickness="1">
+                                                <StackPanel>
+                                                    <TextBlock Text="Arriba = más brillo (mezcla con blanco) · Abajo = color más puro"
+                                                               FontSize="10" Opacity="0.6" Width="240" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                                    <Canvas x:Name="ColorPickerCanvas" Width="240" Height="140" ClipToBounds="True"
+                                                            Background="Transparent" Cursor="Cross"
+                                                            MouseLeftButtonDown="ColorPickerCanvas_MouseLeftButtonDown"
+                                                            MouseMove="ColorPickerCanvas_MouseMove"
+                                                            MouseLeftButtonUp="ColorPickerCanvas_MouseLeftButtonUp">
+                                                        <Rectangle Width="240" Height="140" RadiusX="8" RadiusY="8">
+                                                            <Rectangle.Fill>
+                                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                                    <GradientStop Color="#FF0000" Offset="0"/>
+                                                                    <GradientStop Color="#FFFF00" Offset="0.17"/>
+                                                                    <GradientStop Color="#00FF00" Offset="0.33"/>
+                                                                    <GradientStop Color="#00FFFF" Offset="0.5"/>
+                                                                    <GradientStop Color="#0000FF" Offset="0.67"/>
+                                                                    <GradientStop Color="#FF00FF" Offset="0.83"/>
+                                                                    <GradientStop Color="#FF0000" Offset="1"/>
+                                                                </LinearGradientBrush>
+                                                            </Rectangle.Fill>
+                                                        </Rectangle>
+                                                        <Rectangle Width="240" Height="140" RadiusX="8" RadiusY="8" IsHitTestVisible="False">
+                                                            <Rectangle.Fill>
+                                                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                                    <GradientStop Color="#FFFFFFFF" Offset="0"/>
+                                                                    <GradientStop Color="#00FFFFFF" Offset="1"/>
+                                                                </LinearGradientBrush>
+                                                            </Rectangle.Fill>
+                                                        </Rectangle>
+                                                        <Ellipse x:Name="ColorPickerThumb" Width="18" Height="18"
+                                                                 Stroke="White" StrokeThickness="2" Fill="Transparent"
+                                                                 IsHitTestVisible="False" Canvas.Left="0" Canvas.Top="0"/>
+                                                    </Canvas>
+                                                </StackPanel>
+                                            </Border>
+                                        </Popup>
+                                    </StackPanel>
                                 </StackPanel>
-
-                                <Grid Margin="0,0,0,12">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Slider Grid.Column="0" Minimum="10" Maximum="100" Value="{Binding Brightness}"
-                                            Margin="0,0,8,0" VerticalAlignment="Center"
-                                            Style="{StaticResource AccentSliderStyle}"
-                                            ValueChanged="BrightnessSlider_ValueChanged"
-                                            PreviewMouseLeftButtonDown="BrightnessSlider_PreviewMouseLeftButtonDown"
-                                            PreviewMouseMove="BrightnessSlider_PreviewMouseMove"
-                                            PreviewMouseLeftButtonUp="BrightnessSlider_PreviewMouseLeftButtonUp"/>
-                                    <TextBlock Grid.Column="1" Text="{Binding Brightness, StringFormat={}{0:0}%}"
-                                               Width="38" Opacity="0.7" FontSize="12" VerticalAlignment="Center"/>
-                                </Grid>
-
-                                <StackPanel Orientation="Horizontal">
-                                    <Button Tag="TEMP:2700" Background="#FFD9A6" Style="{StaticResource SwatchButtonStyle}" Click="ColorSwatch_Click" ToolTip="Blanco cálido (brillo máximo real)"/>
-                                    <Button Tag="TEMP:6500" Background="#EAF4FF" Style="{StaticResource SwatchButtonStyle}" Click="ColorSwatch_Click" ToolTip="Blanco frío (brillo máximo real)"/>
-                                    <Button Tag="#FF6B6B" Background="#FF6B6B" Style="{StaticResource SwatchButtonStyle}" Click="ColorSwatch_Click"/>
-                                    <Button Tag="#FFA500" Background="#FFA500" Style="{StaticResource SwatchButtonStyle}" Click="ColorSwatch_Click"/>
-                                    <Button Tag="#FFD93D" Background="#FFD93D" Style="{StaticResource SwatchButtonStyle}" Click="ColorSwatch_Click"/>
-                                    <Button Tag="#6BCB77" Background="#6BCB77" Style="{StaticResource SwatchButtonStyle}" Click="ColorSwatch_Click"/>
-                                    <Button Tag="#4D96FF" Background="#4D96FF" Style="{StaticResource SwatchButtonStyle}" Click="ColorSwatch_Click"/>
-                                    <Button Tag="#9B5DE5" Background="#9B5DE5" Style="{StaticResource SwatchButtonStyle}" Click="ColorSwatch_Click"/>
-                                    <Button x:Name="MoreColorsButton" Content="&#8230;" Style="{StaticResource SwatchMoreButtonStyle}" Click="CustomColor_Click"/>
-
-                                    <Popup x:Name="ColorPickerPopup" PlacementTarget="{Binding ElementName=MoreColorsButton}"
-                                           Placement="Bottom" StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade">
-                                        <Border Background="#242424" CornerRadius="12" Padding="12"
-                                                BorderBrush="#3A3A3A" BorderThickness="1">
-                                            <StackPanel>
-                                                <TextBlock Text="Arriba = más brillo (mezcla con blanco) · Abajo = color más puro"
-                                                           FontSize="10" Opacity="0.6" Width="240" TextWrapping="Wrap" Margin="0,0,0,8"/>
-                                                <Canvas x:Name="ColorPickerCanvas" Width="240" Height="140" ClipToBounds="True"
-                                                        Background="Transparent" Cursor="Cross"
-                                                        MouseLeftButtonDown="ColorPickerCanvas_MouseLeftButtonDown"
-                                                        MouseMove="ColorPickerCanvas_MouseMove"
-                                                        MouseLeftButtonUp="ColorPickerCanvas_MouseLeftButtonUp">
-                                                    <Rectangle Width="240" Height="140" RadiusX="8" RadiusY="8">
-                                                        <Rectangle.Fill>
-                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                                                <GradientStop Color="#FF0000" Offset="0"/>
-                                                                <GradientStop Color="#FFFF00" Offset="0.17"/>
-                                                                <GradientStop Color="#00FF00" Offset="0.33"/>
-                                                                <GradientStop Color="#00FFFF" Offset="0.5"/>
-                                                                <GradientStop Color="#0000FF" Offset="0.67"/>
-                                                                <GradientStop Color="#FF00FF" Offset="0.83"/>
-                                                                <GradientStop Color="#FF0000" Offset="1"/>
-                                                            </LinearGradientBrush>
-                                                        </Rectangle.Fill>
-                                                    </Rectangle>
-                                                    <Rectangle Width="240" Height="140" RadiusX="8" RadiusY="8" IsHitTestVisible="False">
-                                                        <Rectangle.Fill>
-                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                                                <GradientStop Color="#FFFFFFFF" Offset="0"/>
-                                                                <GradientStop Color="#00FFFFFF" Offset="1"/>
-                                                            </LinearGradientBrush>
-                                                        </Rectangle.Fill>
-                                                    </Rectangle>
-                                                    <Ellipse x:Name="ColorPickerThumb" Width="18" Height="18"
-                                                             Stroke="White" StrokeThickness="2" Fill="Transparent"
-                                                             IsHitTestVisible="False" Canvas.Left="0" Canvas.Top="0"/>
-                                                </Canvas>
-                                            </StackPanel>
-                                        </Border>
-                                    </Popup>
-                                </StackPanel>
-                            </StackPanel>
+                            </Grid>
                         </Border>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
