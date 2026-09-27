@@ -29,6 +29,10 @@ public partial class App : Application
 
     private async Task BootstrapAsync(SplashWindow splash)
     {
+#if !DEBUG
+        // El chequeo de actualizaciones solo corre en builds Release (lo que se publica).
+        // En Debug lo saltamos: si no, cada build local se auto-reemplazaría por el último
+        // release publicado en GitHub apenas la abrieras, arruinando las pruebas en curso.
         splash.SetStatus("Buscando actualizaciones...");
 
         try
@@ -55,6 +59,7 @@ public partial class App : Application
         {
             // Si algo falla (sin internet, descarga interrumpida, etc.) seguimos con la versión actual.
         }
+#endif
 
         var main = new MainWindow();
         MainWindow = main;

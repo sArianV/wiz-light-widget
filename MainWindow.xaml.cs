@@ -26,7 +26,7 @@ public partial class MainWindow : Window
 
     private WinForms.NotifyIcon? _trayIcon;
     private System.Drawing.Icon? _appIcon;
-    private bool _reallyClose;
+    private bool _cleanedUp;
 
     private IntPtr _iconPowerOn, _iconPowerOff, _iconBrightUp, _iconBrightDown;
 
@@ -41,6 +41,7 @@ public partial class MainWindow : Window
 
         Loaded += MainWindow_Loaded;
         Closing += MainWindow_Closing;
+        Closed += MainWindow_Closed;
     }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -50,11 +51,26 @@ public partial class MainWindow : Window
         await RunDiscoveryAsync();
     }
 
-    private void MainWindow_Closing(object? sender, CancelEventArgs e)
+    // La X cierra la app de verdad. El botón de minimizar de Windows sigue
+    // dejándola corriendo en segundo plano (con los controles del taskbar activos).
+    private void MainWindow_Closing(object? sender, CancelEventArgs e) => CleanupResources();
+
+    private void MainWindow_Closed(object? sender, EventArgs e) => Application.Current.Shutdown();
+
+    private void CleanupResources()
     {
-        if (_reallyClose) return;
-        e.Cancel = true;
-        WindowState = WindowState.Minimized;
+        if (_cleanedUp) return;
+        _cleanedUp = true;
+
+        if (_trayIcon != null)
+        {
+            _trayIcon.Visible = false;
+            _trayIcon.Dispose();
+        }
+        _appIcon?.Dispose();
+
+        foreach (var h in new[] { _iconPowerOn, _iconPowerOff, _iconBrightUp, _iconBrightDown })
+            if (h != IntPtr.Zero) IconFactory.DestroyIcon(h);
     }
 
     // ----- Tray icon -----
@@ -96,23 +112,7 @@ public partial class MainWindow : Window
         Activate();
     }
 
-    private void ExitApplication()
-    {
-        _reallyClose = true;
-
-        if (_trayIcon != null)
-        {
-            _trayIcon.Visible = false;
-            _trayIcon.Dispose();
-        }
-        _appIcon?.Dispose();
-
-        foreach (var h in new[] { _iconPowerOn, _iconPowerOff, _iconBrightUp, _iconBrightDown })
-            if (h != IntPtr.Zero) IconFactory.DestroyIcon(h);
-
-        Close();
-        Application.Current.Shutdown();
-    }
+    private void ExitApplication() => Close();
 
     // ----- Taskbar thumbnail toolbar (hover controls, like Spotify) -----
 
