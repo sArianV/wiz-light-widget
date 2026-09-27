@@ -14,3 +14,6 @@ obj/
 # OS junk
 Thumbs.db
 .DS_Store
+
+# Notas internas, no forman parte del proyecto
+docs/wiz-engine-reference.md
