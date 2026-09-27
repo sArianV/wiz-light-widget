@@ -52,6 +52,8 @@ public partial class MainWindow : Window
         Loaded += MainWindow_Loaded;
         Closing += MainWindow_Closing;
         Closed += MainWindow_Closed;
+
+        _rhythmDecayTimer.Tick += RhythmDecayTick;
     }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -78,6 +80,7 @@ public partial class MainWindow : Window
         _cleanedUp = true;
 
         _periodicScanTimer.Stop();
+        _rhythmDecayTimer.Stop();
 
         if (_trayIcon != null)
         {
@@ -234,10 +237,50 @@ public partial class MainWindow : Window
 
     // ----- Modo rítmico (pulsa las luces al ritmo del audio que suena en la PC) -----
 
-    private enum RhythmColorMode { Rainbow, WarmCoolWhite, FixedList }
+    private enum RhythmColorMode { Rainbow, RainbowRandom, FixedList, PaletteSunset, PaletteOcean, PaletteNeon, PaletteFire }
 
     private static readonly Color WarmWhite = (Color)ColorConverter.ConvertFromString("#FFD9A6")!;
     private static readonly Color CoolWhite = (Color)ColorConverter.ConvertFromString("#EAF4FF")!;
+
+    // Paletas para los modos que "fluyen" como el arcoíris pero limitados a una gama de colores.
+    // Los 4 colores de cada paleta están pensados en pares opuestos (cálido/frío) para que el
+    // cambio se note bien, en vez de tonos vecinos que casi no se distinguen entre sí.
+    private static readonly Color[] PaletteSunset = // Trópico intenso: magenta/amarillo/rojo vs. verde/azul/cian, todos saturados a full
+    {
+        (Color)ColorConverter.ConvertFromString("#FF0066")!,
+        (Color)ColorConverter.ConvertFromString("#00C853")!,
+        (Color)ColorConverter.ConvertFromString("#FFD700")!,
+        (Color)ColorConverter.ConvertFromString("#2962FF")!,
+        (Color)ColorConverter.ConvertFromString("#FF3D00")!,
+        (Color)ColorConverter.ConvertFromString("#00E5FF")!,
+    };
+    private static readonly Color[] PaletteOcean = // Aurora intensa: cian/violeta/azul vs. rojo-naranja/amarillo/magenta
+    {
+        (Color)ColorConverter.ConvertFromString("#00FFFF")!,
+        (Color)ColorConverter.ConvertFromString("#FF3D00")!,
+        (Color)ColorConverter.ConvertFromString("#651FFF")!,
+        (Color)ColorConverter.ConvertFromString("#FFEA00")!,
+        (Color)ColorConverter.ConvertFromString("#2962FF")!,
+        (Color)ColorConverter.ConvertFromString("#FF0066")!,
+    };
+    private static readonly Color[] PaletteNeon = // Neón ácido: magenta/violeta/naranja vs. verde/amarillo/cian
+    {
+        (Color)ColorConverter.ConvertFromString("#FF00C8")!,
+        (Color)ColorConverter.ConvertFromString("#39FF14")!,
+        (Color)ColorConverter.ConvertFromString("#7B2FFF")!,
+        (Color)ColorConverter.ConvertFromString("#FFEA00")!,
+        (Color)ColorConverter.ConvertFromString("#00E5FF")!,
+        (Color)ColorConverter.ConvertFromString("#FF3D00")!,
+    };
+    private static readonly Color[] PaletteFire = // Fuego y hielo: rojo/naranja/amarillo puros vs. cian/azul/violeta puros
+    {
+        (Color)ColorConverter.ConvertFromString("#FF0000")!,
+        (Color)ColorConverter.ConvertFromString("#00E5FF")!,
+        (Color)ColorConverter.ConvertFromString("#FF6D00")!,
+        (Color)ColorConverter.ConvertFromString("#2962FF")!,
+        (Color)ColorConverter.ConvertFromString("#FFD700")!,
+        (Color)ColorConverter.ConvertFromString("#651FFF")!,
+    };
 
     // Colores activos para el modo "Colores fijos"; se actualiza al tocar los círculos del popup.
     private List<Color> _fixedRhythmColors = new()
@@ -253,15 +296,32 @@ public partial class MainWindow : Window
 
     private RhythmColorMode _rhythmMode = RhythmColorMode.Rainbow;
     private double _rhythmHue;
+    private double _rhythmPalettePos;
     private int _fixedColorIndex;
-    private bool _warmToggle;
     private bool _rhythmRunning;
+
+    // Entre golpe y golpe, el brillo va decayendo hacia el piso en vez de
+    // quedarse pegado en el pico del último golpe (efecto "release").
+    private readonly DispatcherTimer _rhythmDecayTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
+    private double _rhythmCurrentBrightness;
+    private byte _rhythmLastR, _rhythmLastG, _rhythmLastB;
+    private DateTime _rhythmLastBeatTime;
+    private const double RhythmMinBrightness = 25;
+    private const double RhythmDecayFactor = 0.80; // por tick de _rhythmDecayTimer
+    private static readonly TimeSpan RhythmDecayHold = TimeSpan.FromMilliseconds(500);
+    private readonly Random _rhythmRandom = new();
 
     private void RhythmButton_Click(object sender, RoutedEventArgs e)
     {
-        RainbowModeRadio.IsChecked = _rhythmMode == RhythmColorMode.Rainbow;
-        WhiteModeRadio.IsChecked = _rhythmMode == RhythmColorMode.WarmCoolWhite;
-        FixedModeRadio.IsChecked = _rhythmMode == RhythmColorMode.FixedList;
+        // Solo mostrar un modo tildado si el rítmico está realmente activo;
+        // si está detenido, ninguno debe aparecer seleccionado.
+        RainbowModeRadio.IsChecked = _rhythmRunning && _rhythmMode == RhythmColorMode.Rainbow;
+        RainbowRandomModeRadio.IsChecked = _rhythmRunning && _rhythmMode == RhythmColorMode.RainbowRandom;
+        FixedModeRadio.IsChecked = _rhythmRunning && _rhythmMode == RhythmColorMode.FixedList;
+        PaletteSunsetRadio.IsChecked = _rhythmRunning && _rhythmMode == RhythmColorMode.PaletteSunset;
+        PaletteOceanRadio.IsChecked = _rhythmRunning && _rhythmMode == RhythmColorMode.PaletteOcean;
+        PaletteNeonRadio.IsChecked = _rhythmRunning && _rhythmMode == RhythmColorMode.PaletteNeon;
+        PaletteFireRadio.IsChecked = _rhythmRunning && _rhythmMode == RhythmColorMode.PaletteFire;
         RhythmStopButton.IsEnabled = _rhythmRunning;
         RhythmPopup.IsOpen = !RhythmPopup.IsOpen;
     }
@@ -273,12 +333,16 @@ public partial class MainWindow : Window
         _rhythmMode = tag switch
         {
             "FixedList" => RhythmColorMode.FixedList,
-            "WarmCoolWhite" => RhythmColorMode.WarmCoolWhite,
+            "RainbowRandom" => RhythmColorMode.RainbowRandom,
+            "PaletteSunset" => RhythmColorMode.PaletteSunset,
+            "PaletteOcean" => RhythmColorMode.PaletteOcean,
+            "PaletteNeon" => RhythmColorMode.PaletteNeon,
+            "PaletteFire" => RhythmColorMode.PaletteFire,
             _ => RhythmColorMode.Rainbow
         };
         _rhythmHue = 0;
+        _rhythmPalettePos = 0;
         _fixedColorIndex = 0;
-        _warmToggle = false;
 
         StartRhythmMode();
         RhythmPopup.IsOpen = false;
@@ -313,6 +377,8 @@ public partial class MainWindow : Window
             _audioReactive.BeatDetected += OnBeatDetected;
             _audioReactive.Start();
             _rhythmRunning = true;
+            _rhythmCurrentBrightness = RhythmMinBrightness;
+            _rhythmDecayTimer.Start();
             RhythmButton.Background = (Brush)FindResource("AccentBrush");
             StatusText.Text = "Modo rítmico";
         }
@@ -329,6 +395,7 @@ public partial class MainWindow : Window
         if (!_rhythmRunning) return;
         _audioReactive.BeatDetected -= OnBeatDetected;
         _audioReactive.Stop();
+        _rhythmDecayTimer.Stop();
         _rhythmRunning = false;
         RhythmButton.Background = Brushes.Transparent;
         StatusText.Text = "Modo rítmico detenido.";
@@ -350,10 +417,20 @@ public partial class MainWindow : Window
                     var c = _fixedRhythmColors[_fixedColorIndex];
                     (r, g, b) = (c.R, c.G, c.B);
                     break;
-                case RhythmColorMode.WarmCoolWhite:
-                    _warmToggle = !_warmToggle;
-                    var white = _warmToggle ? WarmWhite : CoolWhite;
-                    (r, g, b) = (white.R, white.G, white.B);
+                case RhythmColorMode.RainbowRandom:
+                    // A diferencia del arcoíris normal, cada golpe salta a un tono al azar.
+                    _rhythmHue = _rhythmRandom.NextDouble() * 360;
+                    (r, g, b) = HsvToRgb(_rhythmHue, 1.0, 1.0);
+                    break;
+                case RhythmColorMode.PaletteSunset:
+                case RhythmColorMode.PaletteOcean:
+                case RhythmColorMode.PaletteNeon:
+                case RhythmColorMode.PaletteFire:
+                    // Igual que el arcoíris (avanza y mezcla en cada golpe) pero recorriendo
+                    // solo los colores de la paleta elegida en vez de todo el espectro.
+                    var palette = GetPalette(_rhythmMode);
+                    _rhythmPalettePos = (_rhythmPalettePos + 0.6 + strength * 0.8) % palette.Length;
+                    (r, g, b) = LerpPalette(palette, _rhythmPalettePos);
                     break;
                 default:
                     // Cada golpe avanza el tono; su "fuerza" acelera el salto de color.
@@ -364,6 +441,11 @@ public partial class MainWindow : Window
 
             int brightness = 35 + (int)Math.Round(Math.Clamp(strength, 0, 1) * 65);
 
+            // El decay timer toma desde acá y va bajando el brillo hasta el próximo golpe.
+            _rhythmCurrentBrightness = brightness;
+            _rhythmLastBeatTime = DateTime.UtcNow;
+            (_rhythmLastR, _rhythmLastG, _rhythmLastB) = (r, g, b);
+
             foreach (var bulb in targets)
             {
                 bulb.Color = Color.FromRgb(r, g, b);
@@ -371,6 +453,26 @@ public partial class MainWindow : Window
                 _ = SafeSetColorAndBrightness(bulb.Ip, r, g, b, brightness);
             }
         });
+    }
+
+    private void RhythmDecayTick(object? sender, EventArgs e)
+    {
+        if (!_rhythmRunning) return;
+        if (DateTime.UtcNow - _rhythmLastBeatTime < RhythmDecayHold) return; // mantiene el pico un ratito antes de bajar
+
+        double next = RhythmMinBrightness + (_rhythmCurrentBrightness - RhythmMinBrightness) * RhythmDecayFactor;
+        if (Math.Abs(next - _rhythmCurrentBrightness) < 0.5) return; // ya llegó al piso, no hay nada que enviar
+        _rhythmCurrentBrightness = next;
+
+        var targets = GetThumbTargets().Where(b => b.IsOn).ToList();
+        if (targets.Count == 0) return;
+
+        int brightness = (int)Math.Round(_rhythmCurrentBrightness);
+        foreach (var bulb in targets)
+        {
+            bulb.Brightness = brightness;
+            _ = SafeSetColorAndBrightness(bulb.Ip, _rhythmLastR, _rhythmLastG, _rhythmLastB, brightness);
+        }
     }
 
     private async Task SafeSetColorAndBrightness(string ip, byte r, byte g, byte b, int brightness)
@@ -819,6 +921,27 @@ public partial class MainWindow : Window
 
         timer.Stop();
         timer.Start();
+    }
+
+    private static Color[] GetPalette(RhythmColorMode mode) => mode switch
+    {
+        RhythmColorMode.PaletteOcean => PaletteOcean,
+        RhythmColorMode.PaletteNeon => PaletteNeon,
+        RhythmColorMode.PaletteFire => PaletteFire,
+        _ => PaletteSunset
+    };
+
+    private static (byte R, byte G, byte B) LerpPalette(Color[] palette, double pos)
+    {
+        int i0 = (int)Math.Floor(pos) % palette.Length;
+        int i1 = (i0 + 1) % palette.Length;
+        double t = pos - Math.Floor(pos);
+        var c0 = palette[i0];
+        var c1 = palette[i1];
+        byte r = (byte)Math.Round(c0.R + (c1.R - c0.R) * t);
+        byte g = (byte)Math.Round(c0.G + (c1.G - c0.G) * t);
+        byte b = (byte)Math.Round(c0.B + (c1.B - c0.B) * t);
+        return (r, g, b);
     }
 
     private static (byte R, byte G, byte B) HsvToRgb(double h, double s, double v)

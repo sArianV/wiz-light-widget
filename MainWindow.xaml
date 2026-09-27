@@ -382,9 +382,53 @@
                         <RadioButton x:Name="RainbowModeRadio" GroupName="RhythmMode" Tag="Rainbow"
                                      Content="🌈 Arcoíris (todos los tonos)" Foreground="#F5F5F5"
                                      Margin="0,0,0,10" Click="RhythmModeRadio_Click"/>
-                        <RadioButton x:Name="WhiteModeRadio" GroupName="RhythmMode" Tag="WarmCoolWhite"
-                                     Content="🤍 Blanco frío/cálido" Foreground="#F5F5F5"
+                        <RadioButton x:Name="RainbowRandomModeRadio" GroupName="RhythmMode" Tag="RainbowRandom"
+                                     Content="🎲 Arcoíris aleatorio" Foreground="#F5F5F5"
                                      Margin="0,0,0,10" Click="RhythmModeRadio_Click"/>
+                        <RadioButton x:Name="PaletteSunsetRadio" GroupName="RhythmMode" Tag="PaletteSunset"
+                                     Margin="0,0,0,10" Click="RhythmModeRadio_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="14" Height="14" Fill="#FF0066" Margin="0,0,4,0"/>
+                                <Ellipse Width="14" Height="14" Fill="#00C853" Margin="0,0,4,0"/>
+                                <Ellipse Width="14" Height="14" Fill="#FFD700" Margin="0,0,4,0"/>
+                                <Ellipse Width="14" Height="14" Fill="#2962FF" Margin="0,0,4,0"/>
+                                <Ellipse Width="14" Height="14" Fill="#FF3D00" Margin="0,0,4,0"/>
+                                <Ellipse Width="14" Height="14" Fill="#00E5FF"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton x:Name="PaletteOceanRadio" GroupName="RhythmMode" Tag="PaletteOcean"
+                                     Margin="0,0,0,10" Click="RhythmModeRadio_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="14" Height="14" Fill="#00FFFF" Margin="0,0,4,0"/>
+                                <Ellipse Width="14" Height="14" Fill="#FF3D00" Margin="0,0,4,0"/>
+                                <Ellipse Width="14" Height="14" Fill="#651FFF" Margin="0,0,4,0"/>
+                                <Ellipse Width="14" Height="14" Fill="#FFEA00" Margin="0,0,4,0"/>
+                                <Ellipse Width="14" Height="14" Fill="#2962FF" Margin="0,0,4,0"/>
+                                <Ellipse Width="14" Height="14" Fill="#FF0066"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton x:Name="PaletteNeonRadio" GroupName="RhythmMode" Tag="PaletteNeon"
+                                     Margin="0,0,0,10" Click="RhythmModeRadio_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="14" Height="14" Fill="#FF00C8" Margin="0,0,4,0"/>
+                                <Ellipse Width="14" Height="14" Fill="#39FF14" Margin="0,0,4,0"/>
+                                <Ellipse Width="14" Height="14" Fill="#7B2FFF" Margin="0,0,4,0"/>
+                                <Ellipse Width="14" Height="14" Fill="#FFEA00" Margin="0,0,4,0"/>
+                                <Ellipse Width="14" Height="14" Fill="#00E5FF" Margin="0,0,4,0"/>
+                                <Ellipse Width="14" Height="14" Fill="#FF3D00"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton x:Name="PaletteFireRadio" GroupName="RhythmMode" Tag="PaletteFire"
+                                     Margin="0,0,0,10" Click="RhythmModeRadio_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="14" Height="14" Fill="#FF0000" Margin="0,0,4,0"/>
+                                <Ellipse Width="14" Height="14" Fill="#00E5FF" Margin="0,0,4,0"/>
+                                <Ellipse Width="14" Height="14" Fill="#FF6D00" Margin="0,0,4,0"/>
+                                <Ellipse Width="14" Height="14" Fill="#2962FF" Margin="0,0,4,0"/>
+                                <Ellipse Width="14" Height="14" Fill="#FFD700" Margin="0,0,4,0"/>
+                                <Ellipse Width="14" Height="14" Fill="#651FFF"/>
+                            </StackPanel>
+                        </RadioButton>
                         <RadioButton x:Name="FixedModeRadio" GroupName="RhythmMode" Tag="FixedList"
                                      Content="🎨 Colores fijos" Foreground="#F5F5F5"
                                      Margin="0,0,0,6" Click="RhythmModeRadio_Click"/>
