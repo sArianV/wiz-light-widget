@@ -38,13 +38,14 @@ public partial class MainWindow : Window
     private System.Drawing.Icon? _appIcon;
     private bool _cleanedUp;
 
-    private IntPtr _iconPowerOn, _iconPowerOff, _iconBrightUp, _iconBrightDown, _iconWarmWhite, _iconCoolWhite;
+    private IntPtr _iconPowerOn, _iconPowerOff, _iconBrightUp, _iconBrightDown, _iconWarmWhite, _iconCoolWhite, _iconMoveMonitor;
 
     private const uint ThumbIdPower = 1;
     private const uint ThumbIdBrightDown = 2;
     private const uint ThumbIdBrightUp = 3;
     private const uint ThumbIdWarmWhite = 4;
     private const uint ThumbIdCoolWhite = 5;
+    private const uint ThumbIdMoveMonitor = 6;
 
     public MainWindow()
     {
@@ -96,7 +97,7 @@ public partial class MainWindow : Window
         _appIcon?.Dispose();
         _audioReactive.Dispose();
 
-        foreach (var h in new[] { _iconPowerOn, _iconPowerOff, _iconBrightUp, _iconBrightDown, _iconWarmWhite, _iconCoolWhite })
+        foreach (var h in new[] { _iconPowerOn, _iconPowerOff, _iconBrightUp, _iconBrightDown, _iconWarmWhite, _iconCoolWhite, _iconMoveMonitor })
             if (h != IntPtr.Zero) IconFactory.DestroyIcon(h);
     }
 
@@ -505,6 +506,7 @@ public partial class MainWindow : Window
         _iconBrightUp = IconFactory.CreateBrightnessIcon(true);
         _iconWarmWhite = IconFactory.CreateWhiteTempIcon(warm: true);
         _iconCoolWhite = IconFactory.CreateWhiteTempIcon(warm: false);
+        _iconMoveMonitor = IconFactory.CreateMoveMonitorIcon();
 
         _taskbarMgr.SetButtons(new List<ThumbButtonDef>
         {
@@ -513,6 +515,7 @@ public partial class MainWindow : Window
             new(ThumbIdBrightUp, _iconBrightUp, "Subir brillo"),
             new(ThumbIdWarmWhite, _iconWarmWhite, "Blanco cálido"),
             new(ThumbIdCoolWhite, _iconCoolWhite, "Blanco frío"),
+            new(ThumbIdMoveMonitor, _iconMoveMonitor, "Mover a otro monitor"),
         });
 
         _taskbarMgr.ButtonClicked += async id => await OnThumbButtonClicked(id);
@@ -526,8 +529,42 @@ public partial class MainWindow : Window
         return favorites.Count > 0 ? favorites : online;
     }
 
+    // Nombre del monitor donde quedó el widget la última vez que se lo movió con el botón de la
+    // barra de tareas; sirve de respaldo cuando la ventana está oculta y no se puede medir.
+    private string? _lastMonitorDevice;
+
+    private void MoveWidgetToNextMonitor()
+    {
+        var screens = WindowMonitorHelper.GetOrderedScreens();
+        var hwnd = new WindowInteropHelper(this).Handle;
+
+        // Se restaura primero para medir y mover una ventana normal y visible.
+        var currentDevice = IsVisible && WindowState != WindowState.Minimized
+            ? WinForms.Screen.FromHandle(hwnd).DeviceName
+            : _lastMonitorDevice;
+        if (!IsVisible) Show();
+        if (WindowState != WindowState.Normal) WindowState = WindowState.Normal;
+        currentDevice ??= WinForms.Screen.FromHandle(hwnd).DeviceName;
+
+        int currentIndex = screens.FindIndex(s => s.DeviceName == currentDevice);
+        var target = screens[(currentIndex + 1) % screens.Count];
+
+        WindowMonitorHelper.MoveToScreenAndActivate(hwnd, target);
+        _lastMonitorDevice = target.DeviceName;
+        StatusText.Text = screens.Count > 1
+            ? $"Widget movido al monitor {screens.IndexOf(target) + 1} de {screens.Count}."
+            : "Solo hay un monitor conectado.";
+    }
+
     private async Task OnThumbButtonClicked(uint id)
     {
+        // Mover el widget de monitor no es un control de luces: no debe cortar el modo rítmico.
+        if (id == ThumbIdMoveMonitor)
+        {
+            MoveWidgetToNextMonitor();
+            return;
+        }
+
         // Los controles de la barra de tareas tienen prioridad: cualquier click ahí
         // cancela el modo rítmico para que no compita enviando colores/brillo distintos.
         StopRhythmMode();
@@ -591,6 +628,7 @@ public partial class MainWindow : Window
             new(ThumbIdBrightUp, _iconBrightUp, $"Subir brillo ({label})"),
             new(ThumbIdWarmWhite, _iconWarmWhite, $"Blanco cálido ({label})"),
             new(ThumbIdCoolWhite, _iconCoolWhite, $"Blanco frío ({label})"),
+            new(ThumbIdMoveMonitor, _iconMoveMonitor, "Mover a otro monitor"),
         });
     }
 

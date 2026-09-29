@@ -80,6 +80,36 @@ public static class IconFactory
         return bmp.GetHicon();
     }
 
+    public static IntPtr CreateMoveMonitorIcon(int size = 32)
+    {
+        using var bmp = new Bitmap(size, size);
+        using var g = Graphics.FromImage(bmp);
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.Clear(Color.Transparent);
+
+        using (var brush = new SolidBrush(Color.FromArgb(255, 60, 60, 66)))
+            g.FillEllipse(brush, 1, 1, size - 2, size - 2);
+
+        using var pen = new Pen(Color.FromArgb(255, 255, 210, 90), size / 13f)
+        {
+            StartCap = LineCap.Round,
+            EndCap = LineCap.Round,
+            LineJoin = LineJoin.Round
+        };
+
+        // Dos monitores lado a lado y una flecha hacia la derecha debajo.
+        float mw = size * 0.30f, mh = size * 0.24f, my = size * 0.24f;
+        g.DrawRectangle(pen, size * 0.14f, my, mw, mh);
+        g.DrawRectangle(pen, size * 0.56f, my, mw, mh);
+
+        float ay = size * 0.72f;
+        g.DrawLine(pen, size * 0.28f, ay, size * 0.72f, ay);
+        g.DrawLine(pen, size * 0.72f, ay, size * 0.62f, ay - size * 0.09f);
+        g.DrawLine(pen, size * 0.72f, ay, size * 0.62f, ay + size * 0.09f);
+
+        return bmp.GetHicon();
+    }
+
     [DllImport("user32.dll")]
     public static extern bool DestroyIcon(IntPtr handle);
 }
